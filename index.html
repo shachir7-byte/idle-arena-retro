@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>MARDER ARENA</title>
+    <!-- Исправленная ссылка на Vue (без пробелов) -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+    
+    <!-- ЭКРАН ВХОДА -->
+    <div v-if="!gameState.isAuth" class="screen auth-screen">
+        <div class="crt-frame">
+            <h1 class="title-green">MARDER ARENA</h1>
+            
+            <!-- ВИДЕО ЗАСТАВКА -->
+            <div class="media-container">
+                <video autoplay muted loop playsinline class="bg-video">
+                    <source src="templates/mish.mp4" type="video/mp4">
+                </video>
+                <div class="media-overlay">ЗАГРУЗКА СИСТЕМЫ...</div>
+            </div>
+
+            <div class="input-group">
+                <label>Имя игрока:</label>
+                <input v-model="auth.login" type="text" placeholder="Введите имя..." class="retro-input">
+            </div>
+
+            <div class="btn-group">
+                <button @click="handleAuth('normal')" class="btn-retro">Обычный режим</button>
+                <button @click="handleAuth('hardcore')" class="btn-retro danger">Хардкор (сброс при смерти)</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ЭКРАН ИГРЫ -->
+    <div v-else class="screen game-screen">
+        
+        <!-- ЛЕВАЯ ПАНЕЛЬ -->
+        <div class="panel left-panel crt-box">
+            <h3>СТАТИСТИКА</h3>
+            <div class="info-row">Игрок: <b>{{ gameState.user.name }}</b></div>
+            <div class="info-row">Режим: <b>{{ gameState.mode === 'normal' ? 'Обычный' : 'Хардкор' }}</b></div>
+            <div class="info-row">Этаж: <b>{{ gameState.level }}</b></div>
+            <div class="info-row gold-text">Золото: {{ gameState.user.gold }}</div>
+            <div class="info-row points-text">Очки: {{ gameState.user.statPoints }}</div>
+
+            <hr class="separator">
+
+            <div class="stat-block">
+                <div class="label">Здоровье</div>
+                <div class="hp-bar-frame">
+                    <div class="hp-fill" :style="{ width: (gameState.player.hp / gameState.player.maxHp * 100) + '%' }"></div>
+                </div>
+                <div class="hp-text">{{ gameState.player.hp }} / {{ gameState.player.maxHp }}</div>
+            </div>
+
+            <div class="stats-grid">
+                <div>Урон: {{ gameState.player.clickDmg }}</div>
+                <div>Броня: {{ gameState.player.def }}</div>
+            </div>
+
+            <hr class="separator">
+            <h4>РАЗВИТИЕ</h4>
+            <button @click="upgradeStat('str')" :disabled="gameState.user.statPoints === 0" class="btn-small">
+                + Сила (+5 Урон)
+            </button>
+            <button @click="upgradeStat('vit')" :disabled="gameState.user.statPoints === 0" class="btn-small">
+                + Жизнь (+25 HP)
+            </button>
+            <button @click="upgradeStat('def')" :disabled="gameState.user.statPoints === 0" class="btn-small">
+                + Броня (+2 Защ)
+            </button>
+
+            <button @click="logout" class="btn-exit">ВЫЙТИ</button>
+        </div>
+
+        <!-- ЦЕНТР: АРЕНА -->
+        <div class="panel center-panel crt-box">
+            <div class="arena-header">
+                <h2 :class="{ 'boss-text': isBossLevel || (currentMonster && currentMonster.isMiniBoss) }">
+                    ЭТАЖ {{ gameState.level }}
+                    <span v-if="currentMonster && currentMonster.isMiniBoss" class="mini-boss-tag">(МИНИ-БОСС!)</span>
+                </h2>
+                <div class="quote-box">{{ currentQuote }}</div>
+            </div>
+
+            <div v-if="!isWaitingNextLevel" class="combat-area" @click="playerAttack">
+                <div class="enemy-display">
+                    <!-- Картинка: если загрузилась ок, показываем. Если ошибка - скрываем -->
+                    <img 
+                        v-if="showEnemyImage" 
+                        :src="enemyImagePath" 
+                        class="enemy-img" 
+                        :class="{ shake: isShaking }" 
+                        @error="onImageError"
+                    >
+                    <!-- Смайл: показываем, если картинки нет или она не загрузилась -->
+                    <div v-if="!showEnemyImage" class="enemy-emoji" :class="{ shake: isShaking }">
+                        {{ currentMonster.icon }}
+                    </div>
+                </div>
+                
+                <h3 class="enemy-name">{{ currentMonster.name }}</h3>
+
+                <div class="label">Здоровье врага</div>
+                <div class="hp-bar-frame enemy-bar">
+                    <div class="hp-fill enemy-fill" :style="{ width: (currentMonster.hp / currentMonster.maxHp * 100) + '%' }"></div>
+                </div>
+                <div class="hp-text">{{ Math.ceil(currentMonster.hp) }} / {{ currentMonster.maxHp }}</div>
+            </div>
+
+            <div v-else class="victory-area">
+                <h2 class="win-text">ВРАГ ПОВЕРЖЕН!</h2>
+                <p>Золото: {{ lastReward }}</p>
+                <button @click="nextLevel" class="btn-next">СЛЕДУЮЩИЙ ЭТАЖ</button>
+            </div>
+
+            <div class="controls">
+                <button @click="useUltimate" :disabled="!ultReady || isWaitingNextLevel" class="btn-ult">
+                    {{ ultReady ? 'УЛЬТИМАТУМ (x15)' : 'КД: ' + ultTimer }}
+                </button>
+                <button @click="toggleAuto" class="btn-auto">
+                    АВТО: {{ autoOn ? 'ВКЛ' : 'ВЫКЛ' }}
+                </button>
+            </div>
+        </div>
+
+        <!-- ПРАВАЯ ПАНЕЛЬ -->
+        <div class="panel right-panel crt-box">
+            <h3>ОРУЖЕЙНАЯ</h3>
+            <div class="shop-list">
+                <div v-for="w in weaponsStore" :key="w.id" class="shop-item">
+                    <div class="item-info">
+                        <div class="item-name">{{ w.name }}</div>
+                        <div class="item-bonus">+{{ w.dmg }} Урон</div>
+                    </div>
+                    <button @click="buyWeapon(w)" :disabled="w.owned || gameState.user.gold < w.price" class="btn-buy">
+                        {{ w.owned ? 'КУПЛЕНО' : w.price + ' З' }}
+                    </button>
+                </div>
+            </div>
+
+            <div v-if="legendaries.length > 0" class="legendary-box">
+                <h4>ТРОФЕИ</h4>
+                <div v-for="l in legendaries" :key="l.name" class="leg-item">{{ l.name }}</div>
+            </div>
+
+            <hr class="separator">
+            
+            <h3>ЛИДЕРЫ</h3>
+            <div class="leaderboard">
+                <div class="lb-header"><span>#</span><span>ИМЯ</span><span>ЭТ</span></div>
+                <div v-for="(u, i) in leaderboard" :key="i" class="lb-row">
+                    <span class="lb-rank">{{ i + 1 }}</span>
+                    <span class="lb-name">{{ u.user.name }}</span>
+                    <span class="lb-floor">{{ u.level }}</span>
+                </div>
+                <div v-if="leaderboard.length === 0" class="empty-lb">Пусто</div>
+            </div>
+        </div>
+
+    </div>
+</div>
+<script src="app.js"></script>
+</body>
+</html>
