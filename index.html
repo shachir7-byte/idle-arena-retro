@@ -3,19 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <title>MARDER ARENA</title>
-    <!-- фикс: ссылка на вью без пробелов -->
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <div id="app">
     
-    <!-- экр входа -->
+    <!-- экран входа -->
     <div v-if="!gameState.isAuth" class="screen auth-screen">
         <div class="crt-frame">
             <h1 class="title-green">MARDER ARENA</h1>
             
-            <!-- видюха с мышью -->
+            <!-- видео фон (мышь) -->
             <div class="media-container">
                 <video autoplay muted loop playsinline class="bg-video">
                     <source src="templates/mish.mp4" type="video/mp4">
@@ -35,20 +34,20 @@
         </div>
     </div>
 
-    <!-- экр игры -->
+    <!-- экран игры -->
     <div v-else class="screen game-screen">
         
         <!-- лев пан стат -->
         <div class="panel left-panel crt-box">
+            <!-- плашка админа -->
+            <div v-if="isAdmin" class="admin-badge">РЕЖИМ АДМИНИСТРАТОРА (ПРОГРЕСС НЕ СОХРАНЯЕТСЯ)</div>
+            
             <h3>СТАТИСТИКА</h3>
             <div class="info-row">Игрок: <b>{{ gameState.user.name }}</b></div>
             <div class="info-row">Режим: <b>{{ gameState.mode === 'normal' ? 'Обычный' : 'Хардкор' }}</b></div>
             <div class="info-row">Этаж: <b>{{ gameState.level }}</b></div>
             <div class="info-row gold-text">Золото: {{ gameState.user.gold }}</div>
             <div class="info-row points-text">Очки развития: {{ gameState.user.statPoints }}</div>
-
-            <!-- плашка админа -->
-            <div v-if="isAdmin" class="admin-badge">РЕЖИМ АДМИНИСТРАТОРА (ПРОГРЕСС НЕ СОХРАНЯЕТСЯ)</div>
 
             <hr class="separator">
 
@@ -67,13 +66,13 @@
 
             <hr class="separator">
             <h4>РАЗВИТИЕ</h4>
-            <button @click="upgradeStat('str')" :disabled="gameState.user.statPoints === 0 && !isAdmin" class="btn-small">
+            <button @click="upgradeStat('str')" :disabled="!isAdmin && gameState.user.statPoints === 0" class="btn-small">
                 + Сила (+5 Урон)
             </button>
-            <button @click="upgradeStat('vit')" :disabled="gameState.user.statPoints === 0 && !isAdmin" class="btn-small">
+            <button @click="upgradeStat('vit')" :disabled="!isAdmin && gameState.user.statPoints === 0" class="btn-small">
                 + Жизнь (+25 HP)
             </button>
-            <button @click="upgradeStat('def')" :disabled="gameState.user.statPoints === 0 && !isAdmin" class="btn-small">
+            <button @click="upgradeStat('def')" :disabled="!isAdmin && gameState.user.statPoints === 0" class="btn-small">
                 + Броня (+2 Защ)
             </button>
 
@@ -83,7 +82,7 @@
         <!-- центр арена -->
         <div class="panel center-panel crt-box">
             <div class="arena-header">
-                <h2 :class="getHeaderClass()">
+                <h2 :class="{ 'boss-text': isBossActive() }">
                     ЭТАЖ {{ gameState.level }}
                     <span v-if="isMiniBossActive()" class="mini-boss-tag">(МИНИ-БОСС!)</span>
                 </h2>
@@ -91,10 +90,9 @@
             </div>
 
             <div v-if="!isWaitingNextLevel" class="combat-area" @click="playerAttack">
-                <!-- ток картинка, смайлов нет -->
+                <!-- блок под врага: высокий, прозрачный, без смайлов -->
                 <div class="enemy-display">
                     <img v-if="enemyImage" :src="enemyImage" class="enemy-img" :class="{ shake: isShaking }">
-                    <!-- если картинки нет - пусто -->
                 </div>
                 
                 <h3 class="enemy-name">{{ currentMonster.name }}</h3>
@@ -113,19 +111,14 @@
             </div>
 
             <div class="controls">
-                <!-- кнопка ваншота для всех, но админу проще -->
                 <button @click="useUltimate" :disabled="!ultReady || isWaitingNextLevel" class="btn-ult">
                     {{ ultReady ? 'УЛЬТИМАТУМ (x15 УРОН)' : 'ПЕРЕЗАРЯДКА: ' + ultTimer }}
                 </button>
-                
-                <!-- авто-атака -->
                 <button @click="toggleAuto" class="btn-auto">
                     АВТО-АТАКА: {{ autoOn ? 'ВКЛ' : 'ВЫКЛ' }}
                 </button>
-
-                <!-- ток у админа: ваншот -->
                 <button v-if="isAdmin" @click="instantKill" class="btn-god">
-                    ВАНШОТ (ADMIN)
+                    МГНОВЕННОЕ УБИЙСТВО
                 </button>
             </div>
         </div>
