@@ -12,11 +12,11 @@ createApp({
                 level: 1,
                 inventory: []
             },
-            currentMonster: { name: '', hp: 0, maxHp: 0, icon: '', imgFile: '', isMiniBoss: false, attackDmg: 0 },
+            currentMonster: { name: '', hp: 0, maxHp: 0, icon: '', attackDmg: 0, imgFile: '', isMiniBoss: false },
             isWaitingNextLevel: false,
             lastReward: 0,
             isShaking: false,
-            showEnemyImage: true, // флаг: показывать ли картинку
+            showEmoji: false,
             
             autoOn: false,
             autoInterval: null,
@@ -43,26 +43,62 @@ createApp({
         }
     },
     computed: {
+        isAdmin() {
+            const name = this.gameState.user.name.toLowerCase();
+            return name === 'admin' || name === 'админ';
+        },
         isBossLevel() {
-            return this.gameState.level % 5 === 0;
+            return this.gameState.level % 5 === 0 && this.gameState.level <= 25;
         },
         currentQuote() {
-            if (this.isWaitingNextLevel) return this.quotes[this.gameState.level % this.quotes.length];
+            if (this.isWaitingNextLevel) {
+                return this.quotes[this.gameState.level % this.quotes.length];
+            }
             return "";
         },
         leaderboard() {
-            let db = JSON.parse(localStorage.getItem('marder_db') || '[]');
-            return db.sort((a, b) => b.level - a.level).slice(0, 5);
+            let db = JSON.parse(localStorage.getItem('arena_db') || '[]');
+            // Админы не попадают в таблицу лидеров
+            return db.filter(u => {
+                const n = u.user.name.toLowerCase();
+                return n !== 'admin' && n !== 'админ';
+            }).sort((a, b) => b.level - a.level).slice(0, 5);
         },
-        enemyImagePath() {
-            if (!this.currentMonster.imgFile) return '';
+        enemyImage() {
+            if (!this.currentMonster.imgFile) return null;
             return 'templates/' + this.currentMonster.imgFile;
         }
     },
     methods: {
+        // Возвращает объект классов для заголовка (безопасно для Vue)
+        getHeaderClass() {
+            return {
+                'boss-text': this.isBossLevel || this.currentMonster.isMiniBoss
+            };
+        },
+        isBossActive() {
+            return this.isBossLevel || this.currentMonster.isMiniBoss;
+        },
+        isMiniBossActive() {
+            return this.currentMonster.isMiniBoss;
+        },
+        getHpPercent() {
+            return (this.gameState.player.hp / this.gameState.player.maxHp) * 100;
+        },
+        getEnemyHpPercent() {
+            if (this.currentMonster.maxHp === 0) return 0;
+            return (this.currentMonster.hp / this.currentMonster.maxHp) * 100;
+        },
+        formatNumber(num) {
+            if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+            if (num >= 1000) return (num / 1000).toFixed(1) + 'k';
+            return num;
+        },
+
         handleAuth(mode) {
-            if (!this.auth.login.trim()) return alert('введи имя');
-            let db = JSON.parse(localStorage.getItem('marder_db') || '[]');
+            if (!this.auth.login.trim()) return alert('введи имя игрока');
+            
+            let db = JSON.parse(localStorage.getItem('arena_db') || '[]');
             let saved = db.find(u => u.user.name === this.auth.login && u.mode === mode);
             
             if (saved) {
@@ -71,14 +107,20 @@ createApp({
             } else {
                 this.gameState.user.name = this.auth.login;
                 this.gameState.mode = mode;
-                this.gameState.player = { hp: 100, maxHp: 100, clickDmg: 5, def: 0 };
-                this.gameState.level = 1;
-                this.gameState.user.gold = 0;
-                this.gameState.user.statPoints = 0;
-                this.gameState.inventory = [];
-                this.legendaries = [];
-                this.weaponsStore.forEach(w => w.owned = false);
+                // Если админ - даем много ХП для теста, но обычный старт
+                if (this.isAdmin) {
+                    this.gameState.player = { hp: 100000, maxHp: 100000, clickDmg: 1000000000, def: 9999 };
+                } else {
+                    this.gameState.player = { hp: 100, maxHp: 100, clickDmg: 5, def: 0 };
+                    this.gameState.level = 1;
+                    this.gameState.user.gold = 0;
+                    this.gameState.user.statPoints = 0;
+                    this.gameState.inventory = [];
+                    this.legendaries = [];
+                    this.weaponsStore.forEach(w => w.owned = false);
+                }
             }
+            
             this.gameState.isAuth = true;
             this.spawnMonster();
             this.startCombatLoop();
@@ -91,98 +133,98 @@ createApp({
             this.legendaries = [];
             if (this.gameState.inventory.includes(105)) this.legendaries.push({name: 'Ядро Короля Слизней'});
             if (this.gameState.inventory.includes(110)) this.legendaries.push({name: 'Клык Барона'});
-            if (this.gameState.inventory.includes(115)) this.legendaries.push({name: 'Посох Байкал'}); // Новый
-            if (this.gameState.inventory.includes(120)) this.legendaries.push({name: 'Меха-броня'}); // Новый
+            if (this.gameState.inventory.includes(115)) this.legendaries.push({name: 'Посох Байкал'});
+            if (this.gameState.inventory.includes(120)) this.legendaries.push({name: 'Меха-броня'});
             if (this.gameState.inventory.includes(125)) this.legendaries.push({name: 'Клинок Смерти'});
-        },
-
-        // Обработка ошибки загрузки картинки
-        onImageError() {
-            this.showEnemyImage = false;
         },
 
         spawnMonster() {
             this.isWaitingNextLevel = false;
-            this.showEnemyImage = true; // Сброс флага при новом спавне (пытаемся грузить картинку)
-            
+            this.showEmoji = false;
             let lvl = this.gameState.level;
-            let m = { name: '', icon: '', imgFile: '', isMiniBoss: false, hp: 0, maxHp: 0, attackDmg: 0 };
-            let isBoss = (lvl % 5 === 0);
-            
-            // Логика мини-боссов (после 25 этажа, шанс 20%)
-            let isMiniBoss = false;
-            if (lvl > 25 && !isBoss && Math.random() < 0.2) {
-                isMiniBoss = true;
-            }
+            let m = { name: '', icon: '', imgFile: '', hp: 0, maxHp: 0, attackDmg: 0, isMiniBoss: false };
 
-            if (isMiniBoss) {
-                // Мини-боссы
-                const pool = [
-                    {n:'Демон', i:'👿', f:'DEMON.png'},
-                    {n:'Дракон', i:'🐉', f:'DRAGON.png'},
-                    {n:'Призрак', i:'👻', f:'PRIZRAK.png'}
-                ];
-                let rnd = pool[Math.floor(Math.random() * pool.length)];
-                m.name = `МИНИ-БОСС: ${rnd.n} ${lvl} ур.`;
-                m.icon = rnd.i;
-                m.imgFile = rnd.f;
-                m.isMiniBoss = true;
-                // Мини-боссы жирнее обычных
-                let scale = Math.pow(1.4, lvl - 1);
-                m.hp = Math.floor(1000 * scale);
-                m.attackDmg = Math.floor(15 + (lvl * 4));
-            } 
-            else if (lvl <= 4) { 
-                m.name = 'Малый слизень'; m.icon = '🦠'; m.imgFile = 'slime.png'; 
-            } else if (lvl === 5) { 
-                m.name = 'БОСС: Король Слизней'; m.icon = '👑🦠'; m.imgFile = 'BOSS_slime.png'; 
-            } else if (lvl <= 9) { 
-                m.name = 'Чумная крыса'; m.icon = '🐀'; m.imgFile = 'rat.png'; 
-            } else if (lvl === 10) { 
-                m.name = 'БОСС: Крысиный Барон'; m.icon = '👺🐀'; m.imgFile = 'BOSS_rat.png'; 
-            } else if (lvl <= 14) { 
-                m.name = 'Гоблин-вор'; m.icon = '👺'; m.imgFile = 'goblin.png'; 
-            } else if (lvl === 15) { 
-                m.name = 'БОСС: Гоблин-Шаман'; m.icon = '🔮👺'; m.imgFile = 'BOSS_goblin.png'; 
-            } else if (lvl <= 19) { 
-                m.name = 'Дикий Кабан'; m.icon = '🐗'; m.imgFile = 'kaban.png'; 
-            } else if (lvl === 20) { 
-                m.name = 'БОСС: Меха-Кабан'; m.icon = '🤖🐗'; m.imgFile = 'BOSS_kaban.png'; 
-            } else if (lvl <= 24) { 
-                m.name = 'Скелет-воин'; m.icon = '💀'; m.imgFile = 'skeleton.png'; 
-            } else if (lvl === 25) { 
-                m.name = 'БОСС: Рыцарь Смерти'; m.icon = '🐎💀'; m.imgFile = 'BOSS_final.png'; 
+            // Логика спавна
+            if (lvl <= 25) {
+                // Обычная иерархия до 25
+                if (lvl <= 4) { m.name = 'Малый слизень'; m.icon = '🦠'; m.imgFile = 'slime.png'; }
+                else if (lvl === 5) { m.name = 'БОСС: Король Слизней'; m.icon = '👑🦠'; m.imgFile = 'BOSS_slime.png'; }
+                else if (lvl <= 9) { m.name = 'Чумная крыса'; m.icon = '🐀'; m.imgFile = 'rat.png'; }
+                else if (lvl === 10) { m.name = 'БОСС: Крысиный Барон'; m.icon = '👺🐀'; m.imgFile = 'BOSS_rat.png'; }
+                else if (lvl <= 14) { m.name = 'Гоблин-вор'; m.icon = '👺'; m.imgFile = 'goblin.png'; }
+                else if (lvl === 15) { m.name = 'БОСС: Гоблин-Шаман'; m.icon = '🔮👺'; m.imgFile = 'BOSS_goblin.png'; }
+                else if (lvl <= 19) { m.name = 'Дикий Кабан'; m.icon = '🐗'; m.imgFile = 'kaban.png'; }
+                else if (lvl === 20) { m.name = 'БОСС: Меха-Кабан'; m.icon = '🤖🐗'; m.imgFile = 'BOSS_kaban.png'; }
+                else if (lvl <= 24) { m.name = 'Скелет-воин'; m.icon = '💀'; m.imgFile = 'skeleton.png'; }
+                else if (lvl === 25) { m.name = 'БОСС: Рыцарь Смерти'; m.icon = '🐎💀'; m.imgFile = 'BOSS_final.png'; }
             } else {
-                // Обычные мобы после 25 (рандом из пула 1-25 без боссов)
-                const normalPool = [
-                    {n:'Слизень', i:'🦠', f:'slime.png'}, {n:'Крыса', i:'🐀', f:'rat.png'},
-                    {n:'Гоблин', i:'👺', f:'goblin.png'}, {n:'Кабан', i:'🐗', f:'kaban.png'},
-                    {n:'Скелет', i:'💀', f:'skeleton.png'}
-                ];
-                let rnd = normalPool[Math.floor(Math.random() * normalPool.length)];
-                m.name = `${rnd.n} ${lvl} ур.`;
-                m.icon = rnd.i;
-                m.imgFile = rnd.f;
+                // После 25 этажа: 20% мини-босс, 80% обычный моб
+                let isMini = Math.random() < 0.2;
+                
+                if (isMini) {
+                    m.isMiniBoss = true;
+                    const pool = [
+                        {n:'Демон', i:'👿', f:'DEMON.png'}, 
+                        {n:'Дракон', i:'🐉', f:'DRAGON.png'}, 
+                        {n:'Призрак', i:'👻', f:'PRIZRAK.png'}
+                    ];
+                    let rnd = pool[lvl % 3];
+                    m.name =rnd.n + ' (Ур. ' + lvl + ')'; 
+                    m.icon = rnd.i; 
+                    m.imgFile = rnd.f;
+                    // Мини-боссы жирнее
+                    let scale = Math.pow(1.5, lvl - 1);
+                    m.hp = Math.floor(2000 * scale);
+                    m.attackDmg = Math.floor(50 + (lvl * 10));
+                } else {
+                    // Обычный моб (рандом из пула 1-25 без боссов)
+                    const mobs = [
+                        {n:'Слизень', i:'🦠', f:'slime.png'}, {n:'Крыса', i:'🐀', f:'rat.png'},
+                        {n:'Гоблин', i:'👺', f:'goblin.png'}, {n:'Кабан', i:'🐗', f:'kaban.png'},
+                        {n:'Скелет', i:'💀', f:'skeleton.png'}
+                    ];
+                    let rnd = mobs[lvl % mobs.length];
+                    m.name = rnd.n + ' ' + lvl + ' ур.'; 
+                    m.icon = rnd.i; 
+                    m.imgFile = rnd.f;
+                    let scale = Math.pow(1.35, lvl - 1);
+                    m.hp = Math.floor(150 * scale);
+                    m.attackDmg = Math.floor(10 + (lvl * 4));
+                }
             }
 
-            // Если не мини-босс и не обычный после 25, считаем статы по стандарту
-            if (!isMiniBoss && !(lvl > 25 && !isBoss)) {
+            // Если не задано вручную (для обычных до 25)
+            if (m.hp === 0) {
                 let scale = Math.pow(1.35, lvl - 1);
-                let baseHp = isBoss ? 800 : 150;
+                let baseHp = (lvl % 5 === 0) ? 800 : 150;
                 m.hp = Math.floor(baseHp * scale);
                 m.attackDmg = Math.floor(8 + (lvl * 3));
             }
-            
+
             m.maxHp = m.hp;
             this.currentMonster = m;
         },
 
         playerAttack() {
             if (this.isWaitingNextLevel || this.currentMonster.hp <= 0) return;
+            
             this.isShaking = true;
             setTimeout(() => this.isShaking = false, 100);
-            this.currentMonster.hp -= this.gameState.player.clickDmg;
-            if (this.currentMonster.hp <= 0) this.monsterDie();
+
+            // Урон
+            let dmg = this.gameState.player.clickDmg;
+            this.currentMonster.hp -= dmg;
+            
+            if (this.currentMonster.hp <= 0) {
+                this.monsterDie();
+            }
+        },
+
+        // УБИЙСТВО АДМИНОМ (ВАНШОТ)
+        godModeKill() {
+            if (this.isWaitingNextLevel) return;
+            this.currentMonster.hp = 0;
+            this.monsterDie();
         },
 
         monsterDie() {
@@ -191,7 +233,7 @@ createApp({
             
             let baseGold = 10 * this.gameState.level;
             if (this.isBossLevel) baseGold *= 5;
-            if (this.currentMonster.isMiniBoss) baseGold *= 8; // Мини-босс дает много золота
+            if (this.currentMonster.isMiniBoss) baseGold *= 10; // Мини-босс дает больше
             if (this.gameState.mode === 'hardcore') baseGold *= 2;
             
             this.lastReward = baseGold;
@@ -199,44 +241,43 @@ createApp({
             this.gameState.user.statPoints += 3;
 
             this.checkLegendaryDrop();
-            this.save();
+            
+            // Сохраняем только если НЕ админ
+            if (!this.isAdmin) {
+                this.save();
+            }
         },
 
         checkLegendaryDrop() {
             let lvl = this.gameState.level;
-            // 5 этаж
             if (lvl === 5 && !this.gameState.inventory.includes(105)) {
                 this.gameState.inventory.push(105);
                 this.gameState.player.clickDmg += 15;
-                alert('ВЫПАЛО: Ядро Короля Слизней (+15 Урона)');
+                alert('ВЫПАЛО: Ядро Короля Слизней!');
                 this.syncWeapons();
             }
-            // 10 этаж
             if (lvl === 10 && !this.gameState.inventory.includes(110)) {
                 this.gameState.inventory.push(110);
                 this.gameState.player.clickDmg += 30;
-                alert('ВЫПАЛО: Клык Барона (+30 Урона)');
+                alert('ВЫПАЛО: Клык Барона!');
                 this.syncWeapons();
             }
-            // 15 этаж (НОВОЕ: Посох)
             if (lvl === 15 && !this.gameState.inventory.includes(115)) {
                 this.gameState.inventory.push(115);
                 this.gameState.player.clickDmg += 50;
-                alert('ВЫПАЛО: Посох Байкал (+50 Урона)');
+                alert('ВЫПАЛО: Посох Байкал!');
                 this.syncWeapons();
             }
-            // 20 этаж (НОВОЕ: Броня)
             if (lvl === 20 && !this.gameState.inventory.includes(120)) {
                 this.gameState.inventory.push(120);
                 this.gameState.player.def += 80;
-                alert('ВЫПАЛО: Меха-броня (+80 Защиты)');
+                alert('ВЫПАЛО: Меха-броня!');
                 this.syncWeapons();
             }
-            // 25 этаж
             if (lvl === 25 && !this.gameState.inventory.includes(125)) {
                 this.gameState.inventory.push(125);
                 this.gameState.player.clickDmg += 100;
-                alert('ВЫПАЛО: Клинок Смерти (+100 Урона)');
+                alert('ВЫПАЛО: Клинок Смерти!');
                 this.syncWeapons();
             }
         },
@@ -247,14 +288,14 @@ createApp({
         },
 
         upgradeStat(type) {
-            if (this.gameState.user.statPoints <= 0) return;
+            if (this.gameState.user.statPoints <= 0 || this.isAdmin) return;
             this.gameState.user.statPoints--;
             if (type === 'str') this.gameState.player.clickDmg += 5;
-            else if (type === 'vit') { 
+            if (type === 'vit') { 
                 this.gameState.player.maxHp += 25; 
                 this.gameState.player.hp = this.gameState.player.maxHp; 
             }
-            else if (type === 'def') this.gameState.player.def += 2;
+            if (type === 'def') this.gameState.player.def += 2;
             this.save();
         },
 
@@ -264,7 +305,7 @@ createApp({
                 this.gameState.player.clickDmg += w.dmg;
                 w.owned = true;
                 this.gameState.inventory.push(w.id);
-                this.save();
+                if (!this.isAdmin) this.save();
             }
         },
 
@@ -280,15 +321,15 @@ createApp({
 
         playerDie() {
             this.gameState.player.hp = 0;
-            if (this.gameState.mode === 'hardcore') {
-                alert('GAME OVER! Прогресс сброшен.');
-                localStorage.removeItem('marder_db');
+            if (this.gameState.mode === 'hardcore' && !this.isAdmin) {
+                alert('GAME OVER! Хардкор завершен.');
+                localStorage.removeItem('arena_db');
                 location.reload();
             } else {
-                alert('Вы погибли. Здоровье восстановлено.');
+                alert('ВЫ ПОГИБЛИ! Здоровье восстановлено.');
                 this.gameState.player.hp = this.gameState.player.maxHp;
                 this.spawnMonster();
-                this.save();
+                if (!this.isAdmin) this.save();
             }
         },
 
@@ -308,7 +349,13 @@ createApp({
             this.autoOn = !this.autoOn;
             if (this.autoOn) {
                 this.autoInterval = setInterval(() => {
-                    if (!this.isWaitingNextLevel) this.playerAttack();
+                    if (!this.isWaitingNextLevel) {
+                        if (this.isAdmin) {
+                            this.godModeKill(); // Админ ваншотит на авто
+                        } else {
+                            this.playerAttack();
+                        }
+                    }
                 }, 300);
             } else {
                 clearInterval(this.autoInterval);
@@ -316,13 +363,16 @@ createApp({
         },
 
         save() {
-            let db = JSON.parse(localStorage.getItem('marder_db') || '[]');
+            if (this.isAdmin) return; // Админ не сохраняется
+            let db = JSON.parse(localStorage.getItem('arena_db') || '[]');
             let idx = db.findIndex(u => u.user.name === this.gameState.user.name && u.mode === this.gameState.mode);
             if (idx > -1) db[idx] = JSON.parse(JSON.stringify(this.gameState));
             else db.push(JSON.parse(JSON.stringify(this.gameState)));
-            localStorage.setItem('marder_db', JSON.stringify(db));
+            localStorage.setItem('arena_db', JSON.stringify(db));
         },
 
-        logout() { location.reload(); }
+        logout() {
+            location.reload();
+        }
     }
 }).mount('#app');
