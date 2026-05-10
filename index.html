@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>IDLE ARENA RETRO CABINET</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="app" v-cloak>
+    <div v-if="!gameState.isAuth" class="auth-screen">
+        <h1 @click="secretClick++" class="neon-text">IDLE ARENA RETRO</h1>
+        
+        <div class="mouse-video-cabinet">
+            <video autoplay muted loop playsinline class="auth-video">
+                <source src="mish.mp4" type="video/mp4">
+                Твой браузер не поддерживает видео.
+            </video>
+        </div>
+
+        <div v-if="secretClick >= 5" class="video-container secret-video">
+            <video autoplay muted loop>
+                <source src="mish.mp4" type="video/mp4">
+            </video>
+            <p style="font-size: 8px; color: red;">HACKER MODE ACTIVE</p>
+        </div>
+
+        <div class="auth-card cabinet-bezel">
+            <input v-model="auth.login" placeholder="ВВЕДИТЕ ЛОГИН" type="text" class="retro-input">
+            <input v-model="auth.pass" placeholder="ВВЕДИТЕ ПАРОЛЬ" type="password" class="retro-input">
+            
+            <div style="margin-top: 15px; display: flex; gap: 10px; justify-content: center;">
+                <button @click="handleAuth('normal')" class="btn-retro">ОБЫЧНЫЙ (P1)</button>
+                <button @click="handleAuth('hardcore')" class="btn-retro btn-hard">ХАРДКОР (P2)</button>
+            </div>
+
+            <div class="leaderboard" style="margin-top: 25px; text-align: left;">
+                <p style="font-size: 10px; color: var(--gold);">ТАБЛИЦА ЛИДЕРОВ (TOP-5):</p>
+                <div class="tabs">
+                    <button @click="lbTab = 'normal'" :class="{active: lbTab === 'normal'}">NORM</button>
+                    <button @click="lbTab = 'hardcore'" :class="{active: lbTab === 'hardcore'}">HARD</button>
+                </div>
+                <div v-for="(entry, idx) in getLeaderboard" :key="idx" class="lb-row">
+                    <span class="lb-rank">{{ idx + 1 }}.</span>
+                    <span class="lb-name">{{ entry.user.name }}</span>
+                    <span class="lb-floor">ЭТАЖ {{ entry.level }}</span>
+                </div>
+            </div>
+            <p class="blink" style="font-size: 8px; margin-top: 15px;">INSERT COIN OR START</p>
+        </div>
+    </div>
+
+    <div v-else class="game-container arcade-cabinet">
+        <div class="side-panel controller player-panel">
+            <h3>ГЕРОЙ: {{ gameState.user.name }}</h3>
+            <p style="color: var(--gold);">ЗОЛОТО: ${{ gameState.user.gold }}</p>
+            <hr class="neon-line">
+            <div class="stats">
+                <p>HP: {{ Math.ceil(gameState.player.hp) }} / {{ gameState.player.maxHp }}</p>
+                <div class="hp-bar-container player-hp-bezel">
+                    <div class="hp-bar blue-glowing" :style="{ width: (gameState.player.hp / gameState.player.maxHp * 100) + '%' }"></div>
+                </div>
+                <p style="color: var(--dmg-red); font-weight: bold;">УРОН (DMG): {{ gameState.player.clickDmg }}</p>
+                <p style="color: var(--def-blue);">ЗАЩИТА (DEF): {{ gameState.player.def }}</p>
+                <p>ПОИНТЫ: <span class="blink">{{ gameState.user.statPoints }}</span></p>
+            </div>
+            <div class="upgrades arcade-buttons">
+                <button @click="upgradeStat('str')" class="btn-arcade red">СИЛА (УРОН)</button>
+                <button @click="upgradeStat('vit')" class="btn-arcade blue">ЖИЗНЬ (HP)</button>
+                <button @click="upgradeStat('def')" class="btn-arcade yellow">БРОНЯ (DEF)</button>
+            </div>
+            <button @click="logout" style="margin-top: auto; border: 2px solid #500; font-size: 8px;">LOGOUT</button>
+        </div>
+
+        <div class="battle-arena game-screen-glowing">
+            <div class="level-info">
+                <h2 :class="isBossLevel ? 'boss-pulse' : 'neon-green'">ЭТАЖ {{ gameState.level }}</h2>
+            </div>
+
+            <div v-if="!isWaitingNextLevel" class="monster-container" :class="{ shake: isShaking, 'boss-screen': isBossLevel }">
+                <div class="monster-sprite" @click="playerAttack">
+                    {{ currentMonster.icon }}
+                    <div v-if="showCrit" class="crit-text-retro">CRIT!</div>
+                </div>
+                <h3>{{ currentMonster.name }}</h3>
+                <div class="hp-bar-container enemy-hp-bezel">
+                    <div class="hp-bar red-glowing" :style="{ width: (currentMonster.hp / currentMonster.maxHp * 100) + '%' }"></div>
+                </div>
+                <p>{{ Math.ceil(currentMonster.hp) }} / {{ currentMonster.maxHp }} HP</p>
+            </div>
+
+            <div v-else class="victory-screen blinking-border">
+                <h1 style="color: var(--gold);">ЭТАЖ ОЧИЩЕН</h1>
+                <p style="color: #fff; font-size: 12px; margin-bottom: 10px;">{{ getLevelQuote }}</p>
+                <button class="btn-next next-lvl-glow" @click="nextLevel">СЛЕДУЮЩИЙ ЭТАЖ</button>
+            </div>
+
+            <div class="skills controls">
+                <button @click="useUltimate" :disabled="!ultReady || isWaitingNextLevel" class="btn-arcade ult-pulse">
+                    УЛЬТА {{ ultReady ? 'ГОТОВО (15x DMG)' : ultTimer }}
+                </button>
+                <button @click="toggleAdmin" :style="{borderColor: adminMode ? 'var(--hp-enemy)' : '#444'}">
+                    АВТО: {{ adminMode ? 'ON' : 'OFF' }}
+                </button>
+            </div>
+        </div>
+
+        <div class="side-panel controller inventory-panel">
+            <h3 class="neon-yellow">ОРУЖЕЙНАЯ</h3>
+            <div class="shop-list cabinet-grid">
+                <div v-for="wpn in weaponsStore" :key="wpn.id" class="shop-item arcade-card">
+                    <span class="wpn-name">{{ wpn.name }}</span>
+                    <span class="wpn-dmg">(+{{ wpn.dmg }} DMG)</span>
+                    <button @click="buyWeapon(wpn)" :disabled="wpn.owned || gameState.user.gold < wpn.price" class="btn-buy">
+                        {{ wpn.owned ? 'ЭКИП' : '$' + wpn.price }}
+                    </button>
+                </div>
+                <div v-if="legendaries.length > 0" class="legendary-section">
+                    <p style="color: var(--gold); font-size: 8px; margin-top: 15px; text-align: center;">ТРОФЕИ С БОССОВ:</p>
+                    <div v-for="leg in legendaries" :key="leg.id" class="shop-item legend legendary-item-glow">
+                        <span>{{ leg.name }}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

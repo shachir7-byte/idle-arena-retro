@@ -1,0 +1,125 @@
+:root {
+    --bg-dark: #000000;
+    --cabinet-body: #0d0d0d;
+    --card-bg: #111111;
+    --accent-green: #00ff41;
+    --gold: #ffcc00;
+    --hp-enemy: #ff0000;
+    --hp-player: #00ffff;
+    --boss-magenta: #ff00ff;
+    --def-blue: #00ccff;
+    --dmg-red: #ff3333;
+    --retro-font: 'Press Start 2P', cursive;
+}
+
+[v-cloak] { display: none; }
+
+body { 
+    background: var(--bg-dark); 
+    color: var(--accent-green); 
+    font-family: var(--retro-font); 
+    margin: 0; 
+    overflow: hidden; 
+    font-size: 9px;
+    image-rendering: pixelated;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+}
+
+/* CRT Эффект лампового экрана */
+body::before {
+    content: " ";
+    display: block;
+    position: absolute;
+    top: 0; left: 0; bottom: 0; right: 0;
+    background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.15) 50%), 
+                linear-gradient(90deg, rgba(255, 0, 0, 0.05), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.05));
+    z-index: 100;
+    background-size: 100% 2px, 2px 100%;
+    pointer-events: none;
+}
+
+/* Экран Авторизации */
+.auth-screen { text-align: center; }
+.neon-text { color: var(--accent-green); text-shadow: 0 0 10px var(--accent-green), 0 0 20px var(--accent-green); margin-bottom: 10px; }
+
+.mouse-video-cabinet {
+    width: 60px;
+    height: 60px;
+    border: 4px solid var(--cabinet-body);
+    border-radius: 50%;
+    overflow: hidden;
+    margin: 0 auto 10px;
+    box-shadow: 0 0 15px rgba(255, 255, 255, 0.1);
+}
+.auth-video { width: 100%; height: 100%; object-fit: cover; filter: sepia(1) hue-rotate(90deg) contrast(1.5); }
+
+.cabinet-bezel {
+    border: 10px solid var(--cabinet-body);
+    border-radius: 20px;
+    box-shadow: inset 0 0 50px rgba(0, 255, 65, 0.1), 0 0 20px rgba(0, 0, 0, 0.5);
+    background-color: var(--card-bg);
+    padding: 25px;
+    width: 320px;
+}
+
+/* Игровой контейнер */
+.arcade-cabinet {
+    display: grid;
+    grid-template-columns: 240px 1fr 240px;
+    max-width: 1000px;
+    width: 95vw;
+    height: 90vh;
+    border: 12px solid var(--cabinet-body);
+    border-radius: 30px;
+    box-shadow: 0 0 30px rgba(0, 255, 65, 0.1);
+    background: var(--cabinet-body);
+    overflow: hidden;
+}
+
+.side-panel { padding: 15px; display: flex; flex-direction: column; border: 2px solid #222; }
+.neon-line { border-color: var(--accent-green); box-shadow: 0 0 5px var(--accent-green); margin: 10px 0; }
+
+/* HP Бары */
+.hp-bar-container { background: #000; height: 16px; border: 3px solid #666; border-radius: 4px; overflow: hidden; margin: 8px 0; }
+.player-hp-bezel { border-color: var(--hp-player); box-shadow: 0 0 5px var(--hp-player); }
+.enemy-hp-bezel { border-color: var(--hp-enemy); box-shadow: 0 0 5px var(--hp-enemy); }
+.hp-bar { height: 100%; transition: width 0.3s; }
+.blue-glowing { background: var(--hp-player); box-shadow: 0 0 10px var(--hp-player); }
+.red-glowing { background: var(--hp-enemy); box-shadow: 0 0 10px var(--hp-enemy); }
+
+/* Арена */
+.game-screen-glowing { border: 4px solid var(--accent-green); box-shadow: inset 0 0 30px rgba(0, 255, 65, 0.1); display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; }
+.monster-sprite { font-size: 90px; cursor: pointer; user-select: none; transition: transform 0.1s; filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.2)); }
+.shake { animation: shake 0.2s infinite; }
+@keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
+.boss-screen { animation: bossGlow 1s infinite; }
+@keyframes bossGlow { 0%, 100% { border-color: var(--boss-magenta); box-shadow: 0 0 20px var(--boss-magenta); } 50% { border-color: var(--hp-enemy); box-shadow: 0 0 10px var(--hp-enemy); } }
+
+/* Кнопки */
+button { font-family: var(--retro-font); font-size: 8px; border-radius: 4px; cursor: pointer; transition: 0.1s; text-transform: uppercase; }
+.btn-retro { background: #333; color: #fff; border: 4px solid #666; padding: 10px 15px; }
+.btn-retro:active { transform: scale(0.95); background: #222; }
+.btn-hard { color: #f00; border-color: #800; }
+.btn-arcade { background: #444; color: #fff; border: 4px solid #666; width: 100%; padding: 12px; border-radius: 8px; box-shadow: inset -3px -3px 0 0 #000; }
+.red { border-color: #a00; color: #f88; }
+.blue { border-color: #00a; color: #88f; }
+.yellow { border-color: #aa0; color: #ff8; }
+.ult-pulse { animation: ultGlow 1.5s infinite; }
+@keyframes ultGlow { 0%, 100% { border-color: #6200ea; box-shadow: 0 0 10px #6200ea; } 50% { border-color: #b388ff; box-shadow: 0 0 20px #b388ff; } }
+
+/* Магазин */
+.cabinet-grid { display: grid; gap: 8px; }
+.arcade-card { background: var(--card-bg); border: 2px solid #333; padding: 8px; border-radius: 8px; display: flex; flex-direction: column; align-items: center; text-align: center; }
+.wpn-dmg { color: var(--gold); font-size: 7px; margin: 3px 0; }
+.btn-buy { font-size: 7px; width: 100%; padding: 5px; }
+
+/* Пасхалки и Эффекты */
+.blink { animation: blink 1s infinite; }
+@keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+.boss-pulse { color: var(--boss-magenta); animation: blink 0.5s infinite; text-shadow: 0 0 10px var(--boss-magenta); }
+.legendary-item-glow { color: var(--gold); text-shadow: 0 0 10px var(--gold); }
+.blinking-border { animation: borderBlink 1s infinite; }
+@keyframes borderBlink { 0%, 100% { border-color: var(--gold); } 50% { border-color: #333; } }
