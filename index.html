@@ -111,12 +111,15 @@
             </div>
 
             <div class="controls">
+                <!-- кнопка ваншот (админ и игрок) -->
                 <button @click="useUltimate" :disabled="!ultReady || isWaitingNextLevel" class="btn-ult">
                     {{ ultReady ? 'УЛЬТИМАТУМ (x15 УРОН)' : 'ПЕРЕЗАРЯДКА: ' + ultTimer }}
                 </button>
+                <!-- авто-атака -->
                 <button @click="toggleAuto" class="btn-auto">
                     АВТО-АТАКА: {{ autoOn ? 'ВКЛ' : 'ВЫКЛ' }}
                 </button>
+                <!-- кнопка админа (ваншот без кд) -->
                 <button v-if="isAdmin" @click="instantKill" class="btn-god">
                     МГНОВЕННОЕ УБИЙСТВО
                 </button>

@@ -24,6 +24,7 @@ body {
     border-radius: 10px;
 }
 
+/* экран входа */
 .auth-screen {
     text-align: center;
     width: 400px;
@@ -38,7 +39,7 @@ body {
 }
 
 .media-container {
-    height: 200px;
+    height: 200px; /* место под видео */
     display: flex;
     justify-content: center;
     align-items: center;
@@ -52,7 +53,7 @@ body {
 .bg-video {
     width: 100%;
     height: 100%;
-    object-fit: cover;
+    object-fit: cover; /* фикс: видео заполняет блок, не искажаясь */
     display: block;
 }
 
@@ -116,6 +117,7 @@ button {
     color: #000;
 }
 
+/* игровой экран */
 .game-screen {
     display: flex;
     gap: 20px;
@@ -156,6 +158,7 @@ h3, h4 {
 .gold-text { color: #ffd700; }
 .points-text { color: #00ffff; }
 
+/* плашка админа */
 .admin-badge {
     background: #500;
     color: #fff;
@@ -167,6 +170,7 @@ h3, h4 {
     animation: pulse 1s infinite;
 }
 
+/* полоска здоровья */
 .stat-block {
     margin: 15px 0;
     text-align: center;
@@ -203,6 +207,7 @@ h3, h4 {
     margin-top: 2px;
 }
 
+/* кнопки развития */
 .btn-small {
     width: 100%;
     background: #222;
@@ -227,6 +232,7 @@ h3, h4 {
     padding: 10px;
 }
 
+/* арена */
 .arena-header {
     text-align: center;
     width: 100%;
@@ -250,14 +256,15 @@ h3, h4 {
     width: 100%;
 }
 
+/* фикс: блок врага высокий и прозрачный */
 .enemy-display {
     width: 100%;
-    height: 300px;
+    height: 300px; /* высота прямоугольника */
     display: flex;
     justify-content: center;
     align-items: center;
     margin: 10px 0;
-    background: transparent;
+    background: transparent; /* убираем черный фон */
     border: none;
     position: relative;
 }
@@ -314,6 +321,7 @@ h3, h4 {
     color: #555;
 }
 
+/* стиль кнопки админа */
 .btn-god {
     border-color: gold;
     color: #ffd700;
@@ -323,6 +331,7 @@ h3, h4 {
     color: #000;
 }
 
+/* магазин */
 .shop-item {
     display: flex;
     justify-content: space-between;
@@ -363,6 +372,7 @@ h3, h4 {
     border-bottom: 1px dashed #444;
 }
 
+/* лидерборд */
 .leaderboard {
     font-size: 12px;
     margin-top: 10px;
@@ -398,6 +408,7 @@ h3, h4 {
     margin-top: 5px;
 }
 
+/* анимации */
 @keyframes shake {
     0% { transform: translate(0, 0); }
     25% { transform: translate(-5px, 0); }
@@ -412,6 +423,7 @@ h3, h4 {
     100% { opacity: 1; }
 }
 
+/* скроллбар */
 ::-webkit-scrollbar { width: 8px; }
 ::-webkit-scrollbar-track { background: #111; }
 ::-webkit-scrollbar-thumb { background: #444; border: 1px solid #33ff33; }

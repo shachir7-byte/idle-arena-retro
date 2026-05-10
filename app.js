@@ -17,8 +17,7 @@ createApp({
             lastReward: 0,
             isShaking: false,
             autoOn: false,
-            autoInterval: null, // для быстрой авто-атаки
-            mobInterval: null,  // для медленных ударов моба
+            autoInterval: null,
             ultReady: true,
             ultTimer: 0,
             quotes: [
@@ -40,36 +39,44 @@ createApp({
         }
     },
     computed: {
+        // проверка на босса (каждые 5 уровней)
         isBossLevel() {
             return this.gameState.level % 5 === 0;
         },
+        // текущая цитата
         currentQuote() {
             if (this.isWaitingNextLevel) {
                 return this.quotes[this.gameState.level % this.quotes.length];
             }
             return "";
         },
+        // топ игроков
         leaderboard() {
             let db = JSON.parse(localStorage.getItem('arena_db') || '[]');
             return db.sort((a, b) => b.level - a.level).slice(0, 5);
         },
+        // путь к картинке
         enemyImage() {
             if (!this.currentMonster.imgFile) return null;
             return 'templates/' + this.currentMonster.imgFile;
         },
+        // флаг админа
         isAdmin() {
             const name = this.gameState.user.name.toLowerCase();
             return name === 'admin' || name === 'админ';
         }
     },
     methods: {
+        // --- методы для HTML (фикс ошибки) ---
         isBossActive() {
             return this.isBossLevel || (this.currentMonster && this.currentMonster.isMiniBoss);
         },
         isMiniBossActive() {
             return this.currentMonster && this.currentMonster.isMiniBoss;
         },
+        // -------------------------------------------
 
+        // вход в игру
         handleAuth(mode) {
             if (!this.auth.login.trim()) return alert('введи имя игрока');
             
@@ -82,10 +89,11 @@ createApp({
             } else {
                 this.gameState.user.name = this.auth.login;
                 this.gameState.mode = mode;
+                // если админ - даем много хп для теста, но статы базовые
                 if (this.isAdmin) {
                     this.gameState.player.hp = 100000;
                     this.gameState.player.maxHp = 100000;
-                    this.gameState.player.clickDmg = 358079;
+                    this.gameState.player.clickDmg = 358079; // урон админа
                     this.gameState.player.def = 1000;
                     this.gameState.user.gold = 999999;
                     this.gameState.user.statPoints = 999;
@@ -102,9 +110,10 @@ createApp({
             
             this.gameState.isAuth = true;
             this.spawnMonster();
-            this.startCombatLoops(); // запускаем оба цикла
+            this.startCombatLoop();
         },
 
+        // синхрон инвентаря
         syncWeapons() {
             this.weaponsStore.forEach(w => {
                 if (this.gameState.inventory.includes(w.id)) w.owned = true;
@@ -117,12 +126,15 @@ createApp({
             if (this.gameState.inventory.includes(125)) this.legendaries.push({name: 'Клинок Смерти'});
         },
 
+        // спавн моба
         spawnMonster() {
             this.isWaitingNextLevel = false;
             let lvl = this.gameState.level;
             let m = { name: '', icon: '', imgFile: '', hp: 0, maxHp: 0, attackDmg: 0, isMiniBoss: false };
 
+            // логика спавна
             if (lvl <= 25) {
+                // обычная иерархия до 25
                 if (lvl <= 4) { m.name = 'Малый слизень'; m.icon = '🦠'; m.imgFile = 'slime.png'; }
                 else if (lvl === 5) { m.name = 'БОСС: Король Слизней'; m.icon = '👑🦠'; m.imgFile = 'BOSS_slime.png'; }
                 else if (lvl <= 9) { m.name = 'Чумная крыса'; m.icon = '🐀'; m.imgFile = 'rat.png'; }
@@ -134,7 +146,8 @@ createApp({
                 else if (lvl <= 24) { m.name = 'Скелет-воин'; m.icon = '💀'; m.imgFile = 'skeleton.png'; }
                 else if (lvl === 25) { m.name = 'БОСС: Рыцарь Смерти'; m.icon = '🐎💀'; m.imgFile = 'BOSS_final.png'; }
             } else {
-                let isMini = Math.random() < 0.2;
+                // после 25 этажа: рандом или мини-босс
+                let isMini = Math.random() < 0.2; // 20% шанс
                 if (isMini) {
                     m.isMiniBoss = true;
                     const pool = [
@@ -146,10 +159,12 @@ createApp({
                     m.name = rnd.n + ' (Ур. ' + lvl + ')'; 
                     m.icon = rnd.i; 
                     m.imgFile = rnd.f;
+                    // мини-боссы жирнее
                     let scale = Math.pow(1.35, lvl - 1);
                     m.hp = Math.floor(1000 * scale);
                     m.attackDmg = Math.floor(20 + (lvl * 4));
                 } else {
+                    // обычный моб (рандом из пула 1-25 без боссов)
                     const mobs = [
                         {n:'Слизень', f:'slime.png'}, {n:'Крыса', f:'rat.png'}, 
                         {n:'Гоблин', f:'goblin.png'}, {n:'Кабан', f:'kaban.png'}, 
@@ -158,10 +173,11 @@ createApp({
                     let rnd = mobs[Math.floor(Math.random() * mobs.length)];
                     m.name = rnd.n + ' ' + lvl + ' ур.';
                     m.imgFile = rnd.f;
-                    m.icon = '❓';
+                    m.icon = '❓'; // заглушка, если нет картинки
                 }
             }
 
+            // если статы не заданы (для обычных мобов до 25 и некоторых рандомных…)
             if (m.hp === 0) {
                 let scale = Math.pow(1.35, lvl - 1);
                 let baseHp = (lvl % 5 === 0) ? 800 : 150;
@@ -173,11 +189,12 @@ createApp({
             this.currentMonster = m;
         },
 
+        // удар игрока
         playerAttack() {
             if (this.isWaitingNextLevel || this.currentMonster.hp <= 0) return;
             
             this.isShaking = true;
-            setTimeout(() => this.isShaking = false, 50);
+            setTimeout(() => this.isShaking = false, 100);
 
             this.currentMonster.hp -= this.gameState.player.clickDmg;
             
@@ -186,15 +203,18 @@ createApp({
             }
         },
 
+        // ультиматум (игрок x15, админ ваншот)
         useUltimate() {
             if (!this.ultReady || this.isWaitingNextLevel) return;
             
+            // если админ - просто убиваем сразу
             if (this.isAdmin) {
                 this.currentMonster.hp = 0;
                 this.monsterDie();
                 return;
             }
 
+            // для обычных - урон x15
             this.currentMonster.hp -= (this.gameState.player.clickDmg * 15);
             if (this.currentMonster.hp <= 0) this.monsterDie();
             
@@ -209,54 +229,74 @@ createApp({
             }, 1000);
         },
 
+        // мгновенное убийство (только админ)
+        instantKill() {
+            if (!this.isAdmin) return;
+            this.currentMonster.hp = 0;
+            this.monsterDie();
+        },
+
+        // смерть монстра
         monsterDie() {
             this.currentMonster.hp = 0;
             this.isWaitingNextLevel = true;
             
             let baseGold = 10 * this.gameState.level;
             if (this.isBossLevel) baseGold *= 5;
-            if (this.currentMonster.isMiniBoss) baseGold *= 10;
+            if (this.currentMonster.isMiniBoss) baseGold *= 10; // мини-босс дает больше
             if (this.gameState.mode === 'hardcore' && !this.isAdmin) baseGold *= 2;
             
             this.lastReward = baseGold;
             
+            // админ не фармит золото реально, но для вида можно добавить
             if (!this.isAdmin) {
                 this.gameState.user.gold += baseGold;
                 this.gameState.user.statPoints += 3;
                 this.checkLegendaryDrop();
             } else {
-                this.lastReward = 99999;
+                this.lastReward = 99999; // фейк награда для админа
             }
 
             this.save();
         },
 
+        // дроп легандарок
         checkLegendaryDrop() {
             let lvl = this.gameState.level;
+            
+            // 5 эт - ядро
             if (lvl === 5 && !this.gameState.inventory.includes(105)) {
                 this.gameState.inventory.push(105);
                 this.gameState.player.clickDmg += 15;
                 alert('выпало: Ядро Короля Слизней (+15 Урона)');
                 this.syncWeapons();
             }
+            
+            // 10 эт - клык
             if (lvl === 10 && !this.gameState.inventory.includes(110)) {
                 this.gameState.inventory.push(110);
                 this.gameState.player.clickDmg += 30;
                 alert('выпало: Клык Барона (+30 Урона)');
                 this.syncWeapons();
             }
+
+            // 15 эт - посох
             if (lvl === 15 && !this.gameState.inventory.includes(115)) {
                 this.gameState.inventory.push(115);
                 this.gameState.player.clickDmg += 50;
                 alert('выпало: Посох Байкал (+50 Урона)');
                 this.syncWeapons();
             }
+
+            // 20 эт - броня
             if (lvl === 20 && !this.gameState.inventory.includes(120)) {
                 this.gameState.inventory.push(120);
                 this.gameState.player.def += 80;
                 alert('выпало: Меха-броня (+80 Защиты)');
                 this.syncWeapons();
             }
+
+            // 25 эт - клинок
             if (lvl === 25 && !this.gameState.inventory.includes(125)) {
                 this.gameState.inventory.push(125);
                 this.gameState.player.clickDmg += 100;
@@ -265,12 +305,15 @@ createApp({
             }
         },
 
+        // след уровень
         nextLevel() {
             this.gameState.level++;
             this.spawnMonster();
         },
 
+        // прокачка статов
         upgradeStat(type) {
+            // админ качает без ограничений
             if (!this.isAdmin && this.gameState.user.statPoints <= 0) return;
             
             if (!this.isAdmin) this.gameState.user.statPoints--;
@@ -285,6 +328,7 @@ createApp({
             this.save();
         },
 
+        // покупка оружия
         buyWeapon(w) {
             if (this.isAdmin || (this.gameState.user.gold >= w.price && !w.owned)) {
                 if (!this.isAdmin) this.gameState.user.gold -= w.price;
@@ -295,34 +339,36 @@ createApp({
             }
         },
 
-        // ФИКС: РАЗДЕЛЕНИЕ ЦИКЛОВ
-        startCombatLoops() {
-            // 1. Цикл авто-атаки игрока (БЫСТРЫЙ - 100мс)
-            if (this.autoInterval) clearInterval(this.autoInterval);
-            this.autoInterval = setInterval(() => {
-                if (this.gameState.isAuth && this.autoOn && !this.isWaitingNextLevel && this.gameState.player.hp > 0) {
+        // цикл боя (разделен на авто и ответку)
+        startCombatLoop() {
+            // быстрый цикл для авто-атаки (100мс)
+            setInterval(() => {
+                if (this.gameState.isAuth && !this.isWaitingNextLevel && this.autoOn) {
                     this.playerAttack();
                 }
-            }, 100); // скорость авто-клика
+            }, 100);
 
-            // 2. Цикл атаки моба (МЕДЛЕННЫЙ - 2000мс)
-            if (this.mobInterval) clearInterval(this.mobInterval);
-            this.mobInterval = setInterval(() => {
+            // медленный цикл для атаки монстра (2000мс)
+            setInterval(() => {
                 if (this.gameState.isAuth && !this.isWaitingNextLevel && this.gameState.player.hp > 0) {
                     let dmg = Math.max(1, this.currentMonster.attackDmg - this.gameState.player.def);
+                    // админ почти не получает урона
                     if (this.isAdmin) dmg = 1; 
                     
                     this.gameState.player.hp -= dmg;
                     if (this.gameState.player.hp <= 0) this.playerDie();
                 }
-            }, 2000); // скорость удара моба
+            }, 2000);
         },
 
+        // вкл/выкл авто
         toggleAuto() {
             this.autoOn = !this.autoOn;
+            // если включили авто, делаем первый клик сразу
             if (this.autoOn && !this.isWaitingNextLevel) this.playerAttack();
         },
 
+        // смерть игрока
         playerDie() {
             this.gameState.player.hp = 0;
             if (this.gameState.mode === 'hardcore' && !this.isAdmin) {
@@ -337,8 +383,9 @@ createApp({
             }
         },
 
+        // сохранение
         save() {
-            if (this.isAdmin) return;
+            if (this.isAdmin) return; // админ не сохраняется
             let db = JSON.parse(localStorage.getItem('arena_db') || '[]');
             let idx = db.findIndex(u => u.user.name === this.gameState.user.name && u.mode === this.gameState.mode);
             if (idx > -1) db[idx] = JSON.parse(JSON.stringify(this.gameState));
@@ -346,6 +393,7 @@ createApp({
             localStorage.setItem('arena_db', JSON.stringify(db));
         },
 
+        // выход
         logout() {
             location.reload();
         }
